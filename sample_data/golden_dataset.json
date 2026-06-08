@@ -1,0 +1,58 @@
+[
+  {
+    "id": "golden_001",
+    "name": "NPM dependency install failure",
+    "type": "log",
+    "filename": "npm_install_failure.log",
+    "content": "##[group]Run npm install\nnpm WARN deprecated inflight@1.0.6: This module is not supported\nnpm ERR! code ERESOLVE\nnpm ERR! ERESOLVE unable to resolve dependency tree\nnpm ERR! Found: react@17.0.2\nnpm ERR! node_modules/react\nnpm ERR!   react@\"17.0.2\" from the root project\nnpm ERR! Could not resolve dependency:\nnpm ERR! peer react@\">=18.0.0\" from @testing-library/react@14.0.0\nnpm ERR! Fix the upstream dependency conflict, or retry\nnpm ERR! this command with --force or --legacy-peer-deps\nnpm ERR! A complete log of this run can be found in: /root/.npm/_logs/2024-01-15T10_00_00_000Z-debug-0.log\nProcess exited with code 1",
+    "expected": {
+      "severity": ["HIGH", "MEDIUM"],
+      "root_cause_keywords": ["ERESOLVE", "dependency", "peer", "react", "version"],
+      "fix_keywords": ["--legacy-peer-deps", "react", "version", "upgrade", "downgrade"],
+      "security_keywords": [],
+      "required_sections": ["Root Cause", "Fix", "Explanation", "Prevention"]
+    }
+  },
+  {
+    "id": "golden_002",
+    "name": "Docker build failure with OOM",
+    "type": "log",
+    "filename": "docker_oom_failure.log",
+    "content": "Step 1/12 : FROM python:3.11-slim\n ---> a1b2c3d4e5f6\nStep 2/12 : WORKDIR /app\n ---> Using cache\nStep 3/12 : COPY requirements.txt .\n ---> 7f8e9a0b1c2d\nStep 4/12 : RUN pip install -r requirements.txt\nCollecting numpy==1.26.0\nCollecting pandas==2.1.0\nCollecting torch==2.1.0\nDownloading torch-2.1.0-cp311-cp311-linux_x86_64.whl (776 MB)\nKilled\nThe command '/bin/sh -c pip install -r requirements.txt' returned a non-zero code: 137\nERROR: Service 'app' failed to build: The command '/bin/sh -c pip install -r requirements.txt' returned a non-zero code: 137\nError: Process completed with exit code 1.",
+    "expected": {
+      "severity": ["HIGH", "CRITICAL"],
+      "root_cause_keywords": ["OOM", "memory", "killed", "137", "out of memory", "torch"],
+      "fix_keywords": ["memory", "limit", "slim", "multi-stage", "smaller", "reduce"],
+      "security_keywords": [],
+      "required_sections": ["Root Cause", "Fix", "Explanation", "Prevention"]
+    }
+  },
+  {
+    "id": "golden_003",
+    "name": "Insecure pipeline YAML with hardcoded secrets",
+    "type": "yaml",
+    "filename": "insecure_pipeline.yaml",
+    "content": "name: Deploy to Production\non:\n  push:\n    branches: [main]\njobs:\n  deploy:\n    runs-on: ubuntu-latest\n    steps:\n      - uses: actions/checkout@v3\n      - name: Configure AWS\n        env:\n          AWS_ACCESS_KEY_ID: AKIAIOSFODNN7EXAMPLE\n          AWS_SECRET_ACCESS_KEY: wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY\n      - name: Deploy\n        run: |\n          echo \"DB_PASSWORD=supersecret123\" >> .env\n          docker login -u admin -p mypassword123 registry.example.com\n          docker pull registry.example.com/app:latest\n          docker run -d -e DB_URL=postgres://admin:supersecret123@db.prod.example.com/app registry.example.com/app:latest\n      - uses: actions/upload-artifact\n        with:\n          name: logs\n",
+    "expected": {
+      "severity": ["CRITICAL", "HIGH"],
+      "root_cause_keywords": ["hardcoded", "secret", "credential", "AWS", "password"],
+      "fix_keywords": ["secrets", "vault", "environment", "GitHub Secrets", "masked", "rotate"],
+      "security_keywords": ["AWS", "hardcoded", "password", "credential", "exposed"],
+      "required_sections": ["Root Cause", "Security", "Fix", "Prevention"]
+    }
+  },
+  {
+    "id": "golden_004",
+    "name": "GitHub Actions test suite failure",
+    "type": "log",
+    "filename": "pytest_failure.log",
+    "content": "##[group]Run pytest tests/ -v --cov=src\n============================= test session starts ==============================\nplatform linux -- Python 3.11.6, pytest-7.4.3, pluggy-1.3.0\ncollected 47 items\ntests/test_api.py::test_health PASSED [ 2%]\ntests/test_api.py::test_create_user PASSED [ 4%]\ntests/test_db.py::test_connection FAILED [ 6%]\nFAILED tests/test_db.py::test_connection - sqlalchemy.exc.OperationalError: (psycopg2.OperationalError) could not connect to server: Connection refused\n\tIs the server running on host \"localhost\" (127.0.0.1) and accepting\n\tTCP/IP connections on port 5432?\ntests/test_db.py::test_insert FAILED [ 8%]\nFAILED tests/test_db.py::test_insert - sqlalchemy.exc.OperationalError: could not connect to server\ntests/test_api.py::test_create_order FAILED [10%]\nFAILED tests/test_api.py::test_create_order - AssertionError: assert 500 == 200\n=========================== short test summary info ============================\nFAILED tests/test_db.py::test_connection - Connection refused port 5432\nFAILED tests/test_db.py::test_insert - Connection refused port 5432\nFAILED tests/test_api.py::test_create_order - assert 500 == 200\n3 failed, 44 passed in 12.34s\nError: Process completed with exit code 1.",
+    "expected": {
+      "severity": ["HIGH", "MEDIUM"],
+      "root_cause_keywords": ["postgres", "connection", "refused", "5432", "database", "service"],
+      "fix_keywords": ["service", "postgres", "docker-compose", "setup", "wait", "health"],
+      "security_keywords": [],
+      "required_sections": ["Root Cause", "Fix", "Explanation", "Prevention"]
+    }
+  }
+]

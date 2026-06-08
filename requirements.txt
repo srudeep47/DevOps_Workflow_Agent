@@ -1,0 +1,29 @@
+# Core UI
+streamlit>=1.32.0
+
+# AI / LLM
+openai>=1.30.0
+langchain>=0.1.0
+langchain-openai>=0.1.0
+langgraph>=0.0.40
+
+# Backend API
+fastapi>=0.110.0
+uvicorn[standard]>=0.27.0
+gunicorn>=21.0
+
+# YAML & Utilities
+pyyaml>=6.0
+requests>=2.31.0
+
+# Scalability
+cachetools>=5.3.0
+slowapi>=0.1.9
+
+# Observability
+loguru>=0.7.0
+opentelemetry-api>=1.24.0
+opentelemetry-sdk>=1.24.0
+
+# Analytics
+plotly>=5.20.0
