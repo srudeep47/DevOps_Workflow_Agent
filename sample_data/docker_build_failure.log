@@ -1,0 +1,31 @@
+Step 1/12 : FROM node:16-alpine
+ ---> 4b28b3e4d3ec
+Step 2/12 : WORKDIR /app
+ ---> Running in 3f9c2a1b4d8e
+ ---> 7c2d1e3f5a9b
+Step 3/12 : COPY package*.json ./
+ ---> 2e4f6a8c1d3b
+Step 4/12 : RUN npm ci --only=production
+ ---> Running in 9b1c3e5d7f2a
+npm WARN deprecated uuid@3.4.0: Please upgrade to version 7 or higher.
+npm ERR! code ERESOLVE
+npm ERR! ERESOLVE could not resolve
+npm ERR! 
+npm ERR! While resolving: myapp@2.1.0
+npm ERR! Found: react@17.0.2
+npm ERR! node_modules/react
+npm ERR!   react@"^17.0.2" from the root project
+npm ERR! 
+npm ERR! Could not resolve dependency:
+npm ERR! peer react@"^18.0.0" from @mui/material@5.15.0
+npm ERR! node_modules/@mui/material
+npm ERR!   @mui/material@"^5.15.0" from the root project
+npm ERR! 
+npm ERR! Fix the upstream dependency conflict, or retry
+npm ERR! this command with --force or --legacy-peer-deps
+npm ERR! 
+npm ERR! See /root/.npm/eresolve-report.txt for a full report.
+npm ERR! A complete log of this run can be found in:
+npm ERR!     /root/.npm/_logs/2024-03-15T10_24_00_000Z-debug-0.log
+The command '/bin/sh -c npm ci --only=production' returned a non-zero code: 1
+ERROR: Service 'web' failed to build: Build failed

@@ -13,6 +13,8 @@ env/
 *.db-wal
 
 *.log
+!sample_data/github_actions_failure.log
+!sample_data/docker_build_failure.log
 
 .vscode/
 .idea/
@@ -30,4 +32,4 @@ dist/
 
 node_modules/
 
-.md
+md
