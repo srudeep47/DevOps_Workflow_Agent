@@ -773,18 +773,29 @@ def main():
     elif mode == "🧪 Evaluation Suite":
         st.subheader("🧪 Agent Evaluation — Golden Dataset")
         st.info(
-            "Runs the LangGraph agent against 4 pre-defined test cases and scores output on "
+            "Runs the LangGraph agent against 15 pre-defined test cases and scores output on "
             "**root-cause accuracy**, **fix quality**, **security coverage**, and **section completeness**."
         )
         col1, col2 = st.columns([2, 1])
         with col1:
             st.markdown("""
-| ID | Test Case | Type | Expected Severity |
-|----|-----------|------|------------------|
-| golden_001 | NPM dependency resolve failure | log | HIGH |
-| golden_002 | Docker build OOM (exit 137) | log | CRITICAL |
-| golden_003 | Insecure pipeline YAML (hardcoded secrets) | yaml | CRITICAL |
-| golden_004 | GitHub Actions pytest DB connection failure | log | HIGH |
+| ID | Test Case |
+|----|-----------|
+| golden_001 | NPM dependency resolve failure |
+| golden_002 | Docker build OOM |
+| golden_003 | Hardcoded secrets |
+| golden_004 | Pytest DB failure |
+| golden_005 | Unpinned action version |
+| golden_006 | Missing timeout |
+| golden_007 | Secrets exposed in logs |
+| golden_008 | Unpinned Docker image |
+| golden_009 | Missing permissions |
+| golden_010 | Cache invalidation |
+| golden_011 | Authentication failure |
+| golden_012 | Race condition |
+| golden_013 | Network timeout |
+| golden_014 | Deprecated runtime |
+| golden_015 | Disk full |
 """)
         with col2:
             st.markdown("**Scoring rubric**")
@@ -794,10 +805,13 @@ def main():
             st.markdown("- Security coverage: 20 pts")
             st.markdown("- **Pass threshold: 70/100**")
 
-        st.warning("⏱ Running all 4 tests makes 4 AI calls — expect 2–5 minutes.")
+        st.warning("⏱Running all 15 tests makes 15 AI calls and may take several minutes depending on model response time.")
         test_subset = st.multiselect(
             "Run specific tests (empty = run all)",
-            ["golden_001", "golden_002", "golden_003", "golden_004"],
+            [
+                f"golden_{i:03d}"
+                for i in range(1, 16)
+            ],
         )
         if st.button("▶️ Run Evaluation", type="primary"):
             body = {"test_ids": test_subset} if test_subset else {}

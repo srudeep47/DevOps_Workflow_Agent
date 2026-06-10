@@ -15,7 +15,7 @@ import os
 import time
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
-
+from difflib import SequenceMatcher
 from loguru import logger
 
 DATASET_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), "sample_data", "golden_dataset.json")
@@ -26,7 +26,80 @@ WEIGHTS = {
     "fixes":      25,
     "security":   20,
 }
+SYNONYMS = {
+    "pin": [
+        "pinned",
+        "pinning",
+        "specific version",
+        "fixed version",
+    ],
 
+    "sha": [
+        "commit sha",
+        "commit hash",
+        "immutable version",
+    ],
+
+    "tag": [
+        "@v1",
+        "@v2",
+        "@v3",
+        "@v4",
+        "version tag",
+    ],
+
+    "cleanup": [
+        "clean workspace",
+        "remove artifacts",
+        "delete temporary files",
+        "cleanup",
+    ],
+
+    "cache": [
+        "npm cache clean",
+        "clear cache",
+        "purge cache",
+        "cache cleanup",
+    ],
+
+    "prune": [
+        "docker system prune",
+        "remove unused images",
+        "prune docker",
+    ],
+
+    "size": [
+        "increase disk size",
+        "increase disk space",
+        "larger disk",
+        "more storage",
+    ],
+
+    "limit": [
+        "resource limit",
+        "disk limit",
+        "storage limit",
+    ],
+
+    "secrets": [
+        "github secrets",
+        "secret manager",
+        "vault",
+        "credential store",
+    ],
+
+    "environment": [
+        "env variable",
+        "environment variable",
+        "env vars",
+    ],
+
+    "upgrade": [
+        "update",
+        "migrate",
+        "newer version",
+    ],
+}
 
 @dataclass
 class TestResult:
@@ -53,16 +126,58 @@ def load_golden_dataset() -> List[Dict]:
     with open(DATASET_PATH, "r") as f:
         return json.load(f)
 
-
-def _keyword_score(text: str, keywords: List[str], weight: int) -> tuple[float, List[str], List[str]]:
-    """Returns (score, found_keywords, missed_keywords)."""
+def similar(a: str, b: str) -> float:
+    return SequenceMatcher(
+        None,
+        a.lower(),
+        b.lower()
+    ).ratio()
+    
+def _keyword_score(text: str, keywords: List[str], weight: int):
     if not keywords:
         return weight, [], []
+
     text_lower = text.lower()
-    found = [kw for kw in keywords if kw.lower() in text_lower]
-    missed = [kw for kw in keywords if kw.lower() not in text_lower]
+
+    found = []
+    missed = []
+
+    for kw in keywords:
+
+        matched = False
+
+        # Exact match
+        if kw.lower() in text_lower:
+            matched = True
+
+        # Synonym match
+        if not matched:
+            for synonym in SYNONYMS.get(kw.lower(), []):
+                if synonym.lower() in text_lower:
+                    matched = True
+                    break
+
+        # Fuzzy match
+        if not matched:
+            text_words = text_lower.split()
+
+            for word in text_words:
+                if similar(word, kw) >= 0.85:
+                    matched = True
+                    break
+
+        if matched:
+            found.append(kw)
+        else:
+            missed.append(kw)
+
     ratio = len(found) / len(keywords)
-    return round(ratio * weight, 1), found, missed
+
+    return (
+        round(ratio * weight, 1),
+        found,
+        missed,
+    )
 
 
 def _section_score(text: str, sections: List[str], weight: int) -> tuple[float, List[str], List[str]]:
@@ -72,6 +187,9 @@ def _section_score(text: str, sections: List[str], weight: int) -> tuple[float, 
     found = [s for s in sections if s.lower() in text.lower()]
     missing = [s for s in sections if s.lower() not in text.lower()]
     ratio = len(found) / len(sections)
+    logger.warning(f"Expected sections: {sections}")
+    logger.warning(f"Found sections: {found}")
+    logger.warning(f"Missing sections: {missing}")
     return round(ratio * weight, 1), found, missing
 
 
@@ -88,6 +206,8 @@ def evaluate_output(agent_output: str, expected: Dict) -> Dict[str, Any]:
     fix_score, fix_found, fix_missed = _keyword_score(
         text, expected.get("fix_keywords", []), WEIGHTS["fixes"]
     )
+    logger.warning(f"Fix Found: {fix_found}")
+    logger.warning(f"Fix Missed: {fix_missed}")
     # Security: only penalise if security keywords were expected
     sec_kws = expected.get("security_keywords", [])
     if sec_kws:

@@ -54,5 +54,160 @@
       "security_keywords": [],
       "required_sections": ["Root Cause", "Fix", "Explanation", "Prevention"]
     }
+  },
+  {
+    "id": "golden_005",
+    "name": "GitHub Actions: unpinned action version",
+    "type": "yaml",
+    "filename": "unpinned_actions.yaml",
+    "content": "name: CI\non: [push]\njobs:\n  build:\n    runs-on: ubuntu-latest\n    steps:\n      - uses: actions/checkout\n      - uses: actions/setup-node\n      - run: npm install\n      - run: npm test\n",
+    "expected": {
+      "severity": ["MEDIUM", "HIGH"],
+      "root_cause_keywords": ["unpinned", "version", "checkout", "setup-node", "security", "supply chain"],
+      "fix_keywords": ["@v3", "@v4", "@main", "pin", "sha", "tag"],
+      "security_keywords": ["unpinned", "action", "version"],
+      "required_sections": ["Root Cause", "Fix", "Prevention"]
+    }
+  },
+  {
+    "id": "golden_006",
+    "name": "Missing job timeout configuration",
+    "type": "yaml",
+    "filename": "missing_timeout.yaml",
+    "content": "name: Long Running Job\non: [push]\njobs:\n  build:\n    runs-on: ubuntu-latest\n    steps:\n      - uses: actions/checkout@v3\n      - name: Build\n        run: |\n          npm install\n          npm run build\n          npm test\n",
+    "expected": {
+      "severity": ["MEDIUM"],
+      "root_cause_keywords": ["timeout", "missing", "runaway", "infinite", "protection"],
+      "fix_keywords": ["timeout-minutes", "30", "60", "max-duration"],
+      "security_keywords": [],
+      "required_sections": ["Root Cause", "Fix", "Prevention"]
+    }
+  },
+  {
+    "id": "golden_007",
+    "name": "Sensitive data exposed in pipeline logs",
+    "type": "log",
+    "filename": "secret_in_logs.log",
+    "content": "##[group]Run deployment script\nDeploying application...\nAPI_KEY=sk_test_4eC39HqLyjWDarhtT657tZ2z\nLogging into database: postgres://admin:SuperSecret123@db.example.com:5432/prod_db\nConnected to cache: redis://default:RedisPass456@cache.example.com:6379\nDeployment successful\nDeployment completed with exit code 0",
+    "expected": {
+      "severity": ["CRITICAL", "HIGH"],
+      "root_cause_keywords": ["secret", "exposed", "credentials", "logs", "plaintext", "key"],
+      "fix_keywords": ["redact", "mask", "secret", "environment", "vault", "no-log"],
+      "security_keywords": ["API_KEY", "password", "credentials", "exposed", "plaintext"],
+      "required_sections": ["Root Cause", "Security", "Fix", "Prevention"]
+    }
+  },
+  {
+    "id": "golden_008",
+    "name": "Docker base image without version pinning",
+    "type": "yaml",
+    "filename": "dockerfile_unpinned.yaml",
+    "content": "name: Build Image\non: [push]\njobs:\n  build:\n    runs-on: ubuntu-latest\n    steps:\n      - uses: actions/checkout@v3\n      - name: Build Docker Image\n        run: |\n          docker build -t myapp:latest .\nwhere: .\nhas:\n  - FROM ubuntu:latest\n  - RUN apt-get update && apt-get install -y python3\n  - COPY . /app\n",
+    "expected": {
+      "severity": ["MEDIUM", "HIGH"],
+      "root_cause_keywords": ["unpinned", "version", "ubuntu:latest", "base", "image"],
+      "fix_keywords": ["ubuntu:20.04", "ubuntu:22.04", "pin version", "specify", "tag"],
+      "security_keywords": ["unpinned", "image", "latest", "reproducibility"],
+      "required_sections": ["Root Cause", "Fix", "Prevention"]
+    }
+  },
+  {
+    "id": "golden_009",
+    "name": "Missing job permissions configuration",
+    "type": "yaml",
+    "filename": "missing_permissions.yaml",
+    "content": "name: Deploy\non:\n  push:\n    branches: [main]\njobs:\n  deploy:\n    runs-on: ubuntu-latest\n    steps:\n      - uses: actions/checkout@v3\n      - name: Deploy to production\n        run: |\n          kubectl apply -f deploy.yaml\n          helm upgrade --install myapp ./chart\n",
+    "expected": {
+      "severity": ["MEDIUM", "HIGH"],
+      "root_cause_keywords": ["permissions", "missing", "least privilege", "default", "contents"],
+      "fix_keywords": ["permissions", "contents: read", "id-token", "write"],
+      "security_keywords": ["permissions", "privilege", "least privilege", "RBAC"],
+      "required_sections": ["Root Cause", "Fix", "Prevention"]
+    }
+  },
+  {
+    "id": "golden_010",
+    "name": "Cache invalidation causing rebuild on every run",
+    "type": "yaml",
+    "filename": "bad_dockerfile.yaml",
+    "content": "FROM node:18-alpine\nRUN git clone https://github.com/myorg/myrepo.git /app\nWORKDIR /app\nRUN npm install\nCOPY . .\nRUN npm run build\n",
+    "expected": {
+      "severity": ["MEDIUM"],
+      "root_cause_keywords": ["cache", "invalidated", "rebuild", "layer", "order", "git clone"],
+      "fix_keywords": ["reorder", "copy", "install", "before", "layer", "dockerfile best practices"],
+      "security_keywords": [],
+      "required_sections": ["Root Cause", "Fix", "Prevention"]
+    }
+  },
+  {
+    "id": "golden_011",
+    "name": "Authentication failure - missing service setup",
+    "type": "log",
+    "filename": "auth_failure.log",
+    "content": "##[group]Run docker login\nError saving credentials: exec: \"pass\": executable file not found in $PATH\nAborting authentication request\nFailed to push image to registry.example.com\nStatus: 401 Unauthorized\nerror: no credentials supplied when attempting to pull\nProcess exited with code 1",
+    "expected": {
+      "severity": ["HIGH"],
+      "root_cause_keywords": ["authentication", "credentials", "missing", "401", "unauthorized", "docker login"],
+      "fix_keywords": ["secrets", "registry", "login", "environment", "docker", "credential"],
+      "security_keywords": ["authentication", "credentials"],
+      "required_sections": ["Root Cause", "Fix", "Prevention"]
+    }
+  },
+  {
+    "id": "golden_012",
+    "name": "Race condition in parallel job steps",
+    "type": "yaml",
+    "filename": "race_condition.yaml",
+    "content": "name: Build and Test\non: [push]\njobs:\n  parallel-steps:\n    runs-on: ubuntu-latest\n    steps:\n      - uses: actions/checkout@v3\n      - name: Build\n        run: npm run build\n      - name: Test\n        run: npm test\n",
+    "expected": {
+      "severity": ["MEDIUM"],
+      "root_cause_keywords": ["race", "condition", "parallel", "concurrent", "order", "dependency"],
+      "fix_keywords": ["needs", "dependency", "sequential", "order", "wait"],
+      "security_keywords": [],
+      "required_sections": ["Root Cause", "Fix", "Prevention"]
+    }
+  },
+  {
+    "id": "golden_013",
+    "name": "Network connectivity issue in CI environment",
+    "type": "log",
+    "filename": "network_error.log",
+    "content": "##[group]Run curl https://api.example.com/health\ncurl: (7) Failed to connect to api.example.com port 443: Connection timed out\nRetry attempt 1 of 3...\ncurl: (7) Failed to connect to api.example.com port 443: Connection timed out\nRetry attempt 2 of 3...\ncurl: (7) Failed to connect to api.example.com port 443: Connection timed out\nFailed: could not reach external service\nProcess exited with code 1",
+    "expected": {
+      "severity": ["MEDIUM", "HIGH"],
+      "root_cause_keywords": ["connection", "timeout", "network", "dns", "firewall", "external"],
+      "fix_keywords": ["retry", "wait", "health check", "service", "network policy"],
+      "security_keywords": [],
+      "required_sections": ["Root Cause", "Fix", "Prevention"]
+    }
+  },
+  {
+    "id": "golden_014",
+    "name": "Deprecated platform or runtime",
+    "type": "log",
+    "filename": "deprecated_runtime.log",
+    "content": "##[group]Run node -v\nv14.21.3\nWARNING: Node.js 14 is no longer in active LTS and will no longer receive security updates\nPlease upgrade to Node.js 18 LTS or later\n##[group]Run npm test\nDeprecation Warning: Buffer() is deprecated. Use Buffer.alloc() instead\nAll tests passed\nProcess exited with code 0",
+    "expected": {
+      "severity": ["MEDIUM"],
+      "root_cause_keywords": ["deprecated", "node", "version", "EOL", "end-of-life", "security"],
+      "fix_keywords": ["upgrade", "node 18", "lts", "version", "newer"],
+      "security_keywords": ["deprecated", "security", "EOL"],
+      "required_sections": ["Root Cause", "Fix", "Prevention"]
+    }
+  },
+  {
+    "id": "golden_015",
+    "name": "Insufficient disk space in build environment",
+    "type": "log",
+    "filename": "disk_full.log",
+    "content": "##[group]Run npm install\nAdded 1,234 packages\n##[group]Run npm run build\ncompiling... 45% complete\nError: ENOSPC: no space left on device, write\n/build/node_modules/.cache/file.tmp\nThe build directory has exceeded available disk space\nGitHub Actions failed\nProcess exited with code 1",
+    "expected": {
+      "severity": ["HIGH"],
+      "root_cause_keywords": ["disk", "space", "ENOSPC", "cache", "full", "no space"],
+      "fix_keywords": ["cleanup", "cache", "prune", "size", "limit"],
+      "security_keywords": [],
+      "required_sections": ["Root Cause", "Fix", "Prevention"]
+    }
   }
 ]
+

@@ -7,18 +7,18 @@ from tenacity import retry, wait_exponential, stop_after_attempt
 from loguru import logger
 load_dotenv()
 
-MODEL = "gemini-2.5-flash"
+MODEL = "llama-3.3-70b-versatile"
 
 llm = ChatOpenAI(
-    model=MODEL,
-    api_key=os.getenv("GEMINI_API_KEY"),
-    base_url="https://generativelanguage.googleapis.com/v1beta/openai/",
+    model="llama-3.3-70b-versatile",
+    api_key=os.getenv("GROQ_API_KEY"),
+    base_url="https://api.groq.com/openai/v1",
     temperature=0,
 )
 
 client = OpenAI(
-    api_key=os.getenv("GEMINI_API_KEY"),
-    base_url="https://generativelanguage.googleapis.com/v1beta/openai/",
+    api_key=os.getenv("GROQ_API_KEY"),
+    base_url="https://api.groq.com/openai/v1",
 )
 @retry(
     wait=wait_exponential(multiplier=2, min=2, max=60),

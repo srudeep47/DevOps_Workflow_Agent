@@ -25,7 +25,7 @@ from .schemas import (
     RepoAnalyzeRequest,
     YamlAnalyzeRequest,
 )
-from .agent.graph import run_agent, run_agent_with_mask_report, run_combined_agent
+from .agent.graph import run_agent, run_agent_with_mask_report, run_combined_agent, run_agent_with_reasoning_trace
 from .utils import calculate_confidence, get_severity, parse_analysis
 from .secret_masker import mask_secrets
 from .database import init_db, record_analysis, resolve_analysis, get_stats, get_recent_analyses, get_analysis
@@ -210,6 +210,44 @@ async def analyze_log(req: LogAnalyzeRequest, request: Request):
             raise HTTPException(status_code=500, detail=str(e))
 
 
+@app.post("/api/analyze/log/with-trace")
+@limiter.limit("10/minute")
+async def analyze_log_with_trace(req: LogAnalyzeRequest, request: Request):
+    """Analyze log with full reasoning trace for explainability."""
+    with tracer.start_as_current_span("analyze_log_with_trace") as span:
+        span.set_attribute("filename", req.filename)
+        try:
+            mask = mask_secrets(req.content)
+            
+            result_text, trace = await _run_with_timeout(
+                run_agent_with_reasoning_trace,
+                mask.masked_content,
+                "log",
+                req.filename,
+            )
+            
+            result = parse_analysis(result_text)
+            result["severity"] = get_severity(result)
+            result["confidence_score"] = calculate_confidence(result)
+            result["verified_fix"] = False
+            result["masked_secrets"] = mask.findings
+            result["reasoning_trace"] = trace
+            
+            analysis_id = await asyncio.get_event_loop().run_in_executor(
+                None, record_analysis,
+                "log", req.filename,
+                result["severity"], result["confidence_score"],
+                mask.count, result.get("root_cause", "")[:300],
+            )
+            result["analysis_id"] = analysis_id
+            return result
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error(f"Log analysis with trace failed: {e}")
+            raise HTTPException(status_code=500, detail=str(e))
+
+
 @app.post("/api/analyze/yaml")
 @limiter.limit("10/minute")
 async def analyze_yaml_config(req: YamlAnalyzeRequest, request: Request):
@@ -264,7 +302,7 @@ async def analyze_combined(req: CombinedAnalyzeRequest, request: Request):
             log_mask = mask_secrets(req.log_content)
             yaml_mask = mask_secrets(req.yaml_content)
 
-            result = await _run_with_timeout(
+            result_text = await _run_with_timeout(
                 analyze_combined,
                 log_mask.masked_content,
                 yaml_mask.masked_content,
@@ -272,21 +310,18 @@ async def analyze_combined(req: CombinedAnalyzeRequest, request: Request):
                 req.yaml_filename,
             )
 
+            result = parse_analysis(result_text)
             result["severity"] = get_severity(result)
             result["confidence_score"] = calculate_confidence(result)
             result["verified_fix"] = False
             result["masked_secrets"] = (
                 log_mask.findings + yaml_mask.findings
             )
-            log_mask = mask_secrets(req.log_content)
-            yaml_mask = mask_secrets(req.yaml_content)
-            all_findings = log_mask.findings + yaml_mask.findings
-            result = _build_result(raw, all_findings)
             analysis_id = await asyncio.get_event_loop().run_in_executor(
                 None, record_analysis,
                 "combined", f"{req.log_filename}+{req.yaml_filename}",
                 result["severity"], result["confidence_score"],
-                len(all_findings), result.get("root_cause", "")[:300],
+                len(log_mask.findings + yaml_mask.findings), result.get("root_cause", "")[:300],
             )
             result["analysis_id"] = analysis_id
             _cache[key] = result
@@ -380,7 +415,7 @@ async def evaluate(request: Request, body: dict = None):
                     "passed": r.passed,
                     "latency_seconds": r.latency_seconds,
                     "breakdown": r.breakdown,
-                    "agent_output_preview": r.agent_output[:600] + "..." if len(r.agent_output) > 600 else r.agent_output,
+                    "agent_output_preview": r.agent_output[:2000] + "..." if len(r.agent_output) > 2000 else r.agent_output,
                 }
                 for r in report.results
             ],
