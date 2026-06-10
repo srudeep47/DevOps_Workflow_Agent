@@ -3,20 +3,43 @@ import yaml
 from langchain_openai import ChatOpenAI
 from openai import OpenAI
 from dotenv import load_dotenv
+from tenacity import retry, wait_exponential, stop_after_attempt
+from loguru import logger
 load_dotenv()
 
 MODEL = "gemini-2.5-flash"
 
 llm = ChatOpenAI(
-    model="gemini-2.5-flash",
+    model=MODEL,
     api_key=os.getenv("GEMINI_API_KEY"),
     base_url="https://generativelanguage.googleapis.com/v1beta/openai/",
     temperature=0,
 )
+
 client = OpenAI(
     api_key=os.getenv("GEMINI_API_KEY"),
     base_url="https://generativelanguage.googleapis.com/v1beta/openai/",
 )
+@retry(
+    wait=wait_exponential(multiplier=2, min=2, max=60),
+    stop=stop_after_attempt(5),
+    before_sleep=lambda retry_state: logger.warning(
+        f"Retrying Gemini API: attempt {retry_state.attempt_number}"
+    ),
+    reraise=True,
+)
+def create_chat_completion(messages):
+    logger.info("Calling Gemini API")
+
+    response = client.chat.completions.create(
+        model=MODEL,
+        max_completion_tokens=4096,
+        messages=messages,
+    )
+
+    logger.info("Gemini API call successful")
+
+    return response
 SYSTEM_PROMPT = """You are an expert DevOps engineer and CI/CD specialist with deep knowledge of:
 - GitHub Actions, GitLab CI, Jenkins, CircleCI, and other CI/CD platforms
 - Docker, Kubernetes, and container orchestration
@@ -121,11 +144,10 @@ Provide a comprehensive analysis with these exact sections:
 ## Explanation
 ## Prevention Recommendations"""
 
-    response = client.chat.completions.create(
-        model=MODEL,
-        max_completion_tokens=4096,
-        messages=[{"role": "system", "content": SYSTEM_PROMPT}, {"role": "user", "content": prompt}],
-    )
+    response = create_chat_completion([
+    {"role": "system", "content": SYSTEM_PROMPT},
+    {"role": "user", "content": prompt},
+])
     return parse_analysis(response.choices[0].message.content)
 
 
@@ -144,11 +166,10 @@ Provide a comprehensive analysis with these exact sections:
 ## Explanation
 ## Prevention Recommendations"""
 
-    response = client.chat.completions.create(
-        model=MODEL,
-        max_completion_tokens=4096,
-        messages=[{"role": "system", "content": SYSTEM_PROMPT}, {"role": "user", "content": prompt}],
-    )
+    response = create_chat_completion([
+    {"role": "system", "content": SYSTEM_PROMPT},
+    {"role": "user", "content": prompt},
+])
     return parse_analysis(response.choices[0].message.content)
 
 
@@ -173,11 +194,10 @@ Perform a cross-referenced analysis with these exact sections:
 ## Explanation
 ## Prevention Recommendations"""
 
-    response = client.chat.completions.create(
-        model=MODEL,
-        max_completion_tokens=4096,
-        messages=[{"role": "system", "content": SYSTEM_PROMPT}, {"role": "user", "content": prompt}],
-    )
+    response = create_chat_completion([
+    {"role": "system", "content": SYSTEM_PROMPT},
+    {"role": "user", "content": prompt},
+])
     return parse_analysis(response.choices[0].message.content)
 
 
@@ -204,12 +224,50 @@ def parse_analysis(content: str) -> dict:
 
 
 def get_severity(analysis: dict) -> str:
-    security = analysis.get("security_issues", "").lower()
-    root_cause = analysis.get("root_cause", "").lower()
-    if any(kw in security for kw in ["hardcoded secret", "api key", "password", "token", "credential", "private key"]):
+    text = (
+        analysis.get("root_cause", "") + " " +
+        analysis.get("security_issues", "") + " " +
+        analysis.get("fix_suggestions", "")
+    ).lower()
+
+    critical_keywords = [
+        "hardcoded secret",
+        "api key",
+        "password",
+        "token",
+        "credential",
+        "private key",
+        "secret key",
+        "aws_access_key",
+    ]
+
+    high_keywords = [
+        "authentication failure",
+        "permission denied",
+        "unauthorized",
+        "access denied",
+        "security vulnerability",
+        "remote code execution",
+        "privilege escalation",
+    ]
+
+    medium_keywords = [
+        "module not found",
+        "dependency error",
+        "build failed",
+        "compilation error",
+        "test failure",
+        "pipeline failed",
+        "docker build failed",
+    ]
+
+    if any(k in text for k in critical_keywords):
         return "CRITICAL"
-    if any(kw in security for kw in ["authentication", "injection", "privilege", "exposed", "vulnerability"]):
+
+    if any(k in text for k in high_keywords):
         return "HIGH"
-    if "error" in root_cause or "fail" in root_cause:
+
+    if any(k in text for k in medium_keywords):
         return "MEDIUM"
+
     return "LOW"

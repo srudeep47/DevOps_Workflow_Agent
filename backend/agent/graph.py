@@ -8,8 +8,10 @@ from backend.secret_masker import mask_secrets, MaskResult
 
 from dotenv import load_dotenv
 load_dotenv()
+MODEL = "gemini-2.5-flash"
+
 llm = ChatOpenAI(
-    model="gemini-2.5-flash",
+    model=MODEL,
     api_key=os.getenv("GEMINI_API_KEY"),
     base_url="https://generativelanguage.googleapis.com/v1beta/openai/",
     temperature=0,

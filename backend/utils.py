@@ -34,14 +34,49 @@ def parse_analysis(content: str) -> dict:
 
 
 def get_severity(analysis: dict) -> str:
-    security = analysis.get("security_issues", "").lower()
-    root_cause = analysis.get("root_cause", "").lower()
-    if any(kw in security for kw in ["hardcoded secret", "api key", "password", "token", "credential", "private key"]):
+    text = (
+        analysis.get("root_cause", "") + " " +
+        analysis.get("security_issues", "") + " " +
+        analysis.get("fix_suggestions", "")
+    ).lower()
+
+    critical_keywords = [
+        "hardcoded secret",
+        "api key",
+        "password",
+        "token",
+        "credential",
+        "private key",
+        "secret key",
+    ]
+
+    high_keywords = [
+        "authentication failure",
+        "permission denied",
+        "unauthorized",
+        "access denied",
+        "security vulnerability",
+        "privilege escalation",
+    ]
+
+    medium_keywords = [
+        "module not found",
+        "dependency error",
+        "build failed",
+        "pipeline failed",
+        "compilation error",
+        "test failure",
+    ]
+
+    if any(k in text for k in critical_keywords):
         return "CRITICAL"
-    if any(kw in security for kw in ["authentication", "injection", "privilege", "exposed", "vulnerability"]):
+
+    if any(k in text for k in high_keywords):
         return "HIGH"
-    if "error" in root_cause or "fail" in root_cause:
+
+    if any(k in text for k in medium_keywords):
         return "MEDIUM"
+
     return "LOW"
 
 

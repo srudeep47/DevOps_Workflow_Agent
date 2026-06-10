@@ -31,8 +31,13 @@ from .secret_masker import mask_secrets
 from .database import init_db, record_analysis, resolve_analysis, get_stats, get_recent_analyses, get_analysis
 from .analytics import get_analytics
 from .auto_fixer import auto_fix_yaml
-from analyzer import run_agent_analysis
-
+from .sandbox_runner import validate_fixed_yaml
+from analyzer import (
+    run_agent_analysis,
+    analyze_logs,
+    analyze_yaml,
+    analyze_combined,
+)
 # ── Observability ─────────────────────────────────────────────────────────────
 provider = TracerProvider()
 provider.add_span_processor(SimpleSpanProcessor(ConsoleSpanExporter()))
@@ -176,10 +181,18 @@ async def analyze_log(req: LogAnalyzeRequest, request: Request):
     with tracer.start_as_current_span("analyze_log") as span:
         span.set_attribute("filename", req.filename)
         try:
-            raw, mask = await _run_with_timeout(
-                run_agent_with_mask_report, req.content, "log", req.filename
+            mask = mask_secrets(req.content)
+
+            result = await _run_with_timeout(
+                analyze_logs,
+                mask.masked_content,
+                req.filename,
             )
-            result = _build_result(raw, mask.findings)
+
+            result["severity"] = get_severity(result)
+            result["confidence_score"] = calculate_confidence(result)
+            result["verified_fix"] = False
+            result["masked_secrets"] = mask.findings
             # Persist to shared DB
             analysis_id = await asyncio.get_event_loop().run_in_executor(
                 None, record_analysis,
@@ -208,10 +221,18 @@ async def analyze_yaml_config(req: YamlAnalyzeRequest, request: Request):
     with tracer.start_as_current_span("analyze_yaml") as span:
         span.set_attribute("filename", req.filename)
         try:
-            raw, mask = await _run_with_timeout(
-                run_agent_with_mask_report, req.content, "yaml", req.filename
+            mask = mask_secrets(req.content)
+
+            result = await _run_with_timeout(
+                analyze_yaml,
+                mask.masked_content,
+                req.filename,
             )
-            result = _build_result(raw, mask.findings)
+
+            result["severity"] = get_severity(result)
+            result["confidence_score"] = calculate_confidence(result)
+            result["verified_fix"] = False
+            result["masked_secrets"] = mask.findings
             analysis_id = await asyncio.get_event_loop().run_in_executor(
                 None, record_analysis,
                 "yaml", req.filename,
@@ -240,10 +261,22 @@ async def analyze_combined(req: CombinedAnalyzeRequest, request: Request):
     with tracer.start_as_current_span("analyze_combined") as span:
         span.set_attribute("log_filename", req.log_filename)
         try:
-            raw = await _run_with_timeout(
-                run_combined_agent,
-                req.log_content, req.yaml_content,
-                req.log_filename, req.yaml_filename,
+            log_mask = mask_secrets(req.log_content)
+            yaml_mask = mask_secrets(req.yaml_content)
+
+            result = await _run_with_timeout(
+                analyze_combined,
+                log_mask.masked_content,
+                yaml_mask.masked_content,
+                req.log_filename,
+                req.yaml_filename,
+            )
+
+            result["severity"] = get_severity(result)
+            result["confidence_score"] = calculate_confidence(result)
+            result["verified_fix"] = False
+            result["masked_secrets"] = (
+                log_mask.findings + yaml_mask.findings
             )
             log_mask = mask_secrets(req.log_content)
             yaml_mask = mask_secrets(req.yaml_content)
@@ -307,12 +340,20 @@ async def fix_yaml(body: dict):
     if not content:
         raise HTTPException(status_code=400, detail="content field required")
     result = auto_fix_yaml(content)
+
+    sandbox = validate_fixed_yaml(result.fixed)
+
     return {
         "fixed_yaml": result.fixed,
         "diff": result.diff,
         "rules_applied": result.rules_applied,
         "changed": result.changed,
         "rules_count": len(result.rules_applied),
+
+        "verified_fix": sandbox["success"],
+        "sandbox_exit_code": sandbox["exit_code"],
+        "sandbox_stdout": sandbox["stdout"],
+        "sandbox_stderr": sandbox["stderr"],
     }
 
 

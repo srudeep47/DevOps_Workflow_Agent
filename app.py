@@ -459,31 +459,7 @@ def render_evaluation(report: dict):
                 st.markdown(r.get("agent_output_preview", "_No output_"))
 
 
-# ── Sidebar Stats ─────────────────────────────────────────────────────────────
-def render_sidebar_stats(health: dict):
-    st.header("📊 Dashboard")
-    total    = health.get("total_analyses", 0)
-    resolved = health.get("resolved", 0)
-    pending  = health.get("pending", 0)
-    rate     = health.get("resolution_rate", 0)
-    col1, col2 = st.columns(2)
-    with col1:
-        st.metric("Total", total)
-        st.metric("✅ Resolved", resolved)
-    with col2:
-        st.metric("⏳ Pending", pending)
-        st.metric("Rate", f"{rate}%")
-    if total > 0:
-        st.progress(resolved / total, text=f"{rate}% resolved")
-    by_sev = health.get("by_severity", {})
-    if by_sev:
-        icons = {"CRITICAL": "🔴", "HIGH": "🟠", "MEDIUM": "🟡", "LOW": "🟢"}
-        st.caption("**By severity:**")
-        for sev in ["CRITICAL", "HIGH", "MEDIUM", "LOW"]:
-            if sev in by_sev:
-                st.caption(f"  {icons[sev]} {sev}: {by_sev[sev]}")
-    if st.button("🔄 Refresh", use_container_width=True):
-        st.rerun()
+
 
 
 # ── Scanning Helper ───────────────────────────────────────────────────────────
@@ -530,10 +506,7 @@ def main():
             "🧪 Evaluation Suite",
         ], index=0)
 
-        st.divider()
-        render_sidebar_stats(health)
-
-        st.divider()
+        
         if mode not in ["Agentic Repo Analysis", "🧪 Evaluation Suite",
                         "📜 History", "📊 Analytics"]:
             st.header("📂 Sample Data")
@@ -550,12 +523,7 @@ def main():
                 st.session_state["sample_yaml_name"] = "pipeline.yaml"
                 st.toast("Pipeline YAML loaded!", icon="✅")
 
-        st.divider()
-        st.caption(f"Backend: {WORKERS} gunicorn workers")
-        st.caption("Rate limit: 10 req/min/IP")
-        st.caption("Cache: 200 entries · 10 min TTL")
-        st.caption("🔐 Secrets masked before AI")
-        st.caption(f"[API Docs ↗]({BACKEND_URL}/api/docs)")
+        
 
     # ── AGENTIC REPO ──────────────────────────────────────────────────────────
     if mode == "Agentic Repo Analysis":
@@ -679,7 +647,7 @@ def main():
                 with st.spinner("Applying rule-based fixes..."):
                     try:
                         resp = requests.post(f"{BACKEND_URL}/api/fix/yaml",
-                                             json={"content": content}, timeout=10)
+                                             json={"content": content}, timeout=60)
                         resp.raise_for_status()
                         st.session_state["yaml_fix"] = resp.json()
                     except Exception as e:
@@ -694,7 +662,12 @@ def main():
                 st.success("No rule-based issues found — YAML looks clean!")
             else:
                 st.success(f"**{fix['rules_count']} fix(es) applied automatically:**")
+                if fix.get("verified_fix"):
+                    st.success("🐳 Docker Validation Passed")
+                else:
+                    st.error("🐳 Docker Validation Failed")
                 for rule in fix["rules_applied"]:
+                    
                     st.markdown(f"- ✅ {rule}")
 
                 fix_col1, fix_col2 = st.columns(2)
@@ -715,7 +688,17 @@ def main():
                             st.code(diff_text, language="diff")
                         else:
                             st.info("No diff available.")
+                with st.expander("🐳 Docker Validation Logs", expanded=False):
 
+                    st.write(
+                        f"Exit Code: {fix.get('sandbox_exit_code')}"
+                    )
+
+                    if fix.get("sandbox_stdout"):
+                        st.code(fix["sandbox_stdout"])
+
+                    if fix.get("sandbox_stderr"):
+                        st.code(fix["sandbox_stderr"])
         if "yaml_result" in st.session_state and mode == "YAML Config Audit":
             st.divider()
             render_analysis(st.session_state["yaml_result"],
